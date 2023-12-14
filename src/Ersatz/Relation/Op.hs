@@ -15,17 +15,20 @@ module Ersatz.Relation.Op
 , transitive_closure
 , transitive_reflexive_closure
 , equivalence_closure
+, reflexive_reduction
 )
 
 where
 
+import Prelude hiding ( (&&), (||), and, or, not, product )
+import Control.Arrow ( (***) )
+
+import Ersatz.Bit ( (&&), (||), and, or, not )
+import Ersatz.Equatable ( Equatable, (/==) )
 import Ersatz.Relation.Data
 
-import Prelude hiding ( (&&), (||), and, or, not, product )
-import Ersatz.Bit
-
-import qualified Data.Array as A
 import Data.Ix
+import qualified Data.Array as A
 
 -- | Constructs the converse relation \( R^{-1} \) of a relation 
 -- \( R \subseteq A \times B \), which is defined by \( R^{-1} = \{ (y,x) ~|~ (x,y) \in R \} \subseteq B \times A \).
@@ -150,3 +153,9 @@ transitive_reflexive_closure r =
 equivalence_closure :: Ix a => Relation a a -> Relation a a
 equivalence_closure r =
   transitive_reflexive_closure $ symmetric_closure r
+
+-- | Constructs the reflexive reduction of the relation
+-- \( R \subseteq A \times A \), \( R - I_A \).
+reflexive_reduction :: ( Ix a, Equatable a ) => Relation a a -> Relation a a
+reflexive_reduction r =
+    buildFrom (bounds r) (\x y -> x /== y && r ! (x,y))

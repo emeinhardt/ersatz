@@ -1,9 +1,11 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 module Ersatz.Relation.Prop
 
 ( 
 -- * Properties
   implies
 , symmetric
+, asymmetric
 , anti_symmetric
 , transitive
 , irreflexive
@@ -19,16 +21,22 @@ module Ersatz.Relation.Prop
 , complete
 , total
 , disjoint
+, transitive_reduction_of
 )
 
 where
 
-import Prelude hiding ( and, or, not, product )
+import Prelude hiding ( all, any, and, or, not, (&&), (||), product )
+import Data.Composition ((.:))
+import Control.Arrow ( (&&&), (***) )
+import Data.Functor ( (<&>) )
+import Control.Applicative ( liftA2 )
+
 import Ersatz.Bit
 import Ersatz.Relation.Data
 import Ersatz.Relation.Op
 import Ersatz.Counting
-import Ersatz.Equatable
+import Ersatz.Equatable ( Equatable, (===) )
 
 import Data.Ix
 
@@ -73,11 +81,21 @@ disjoint r s = empty $ intersection r s
 symmetric :: ( Ix a ) => Relation a a -> Bit
 symmetric r = implies r ( mirror r )
 
+-- | Tests if a relation \( R \subseteq A \times A \) is asymmetric,
+-- i.e., \( \forall x, y \in A: ((x,y) \in R) \rightarrow ((y,x) \notin R) \).
+asymmetric :: ( Ix a ) => Relation a a -> Bit
+asymmetric r = implies r (complement (mirror r))
 
 -- | Tests if a relation \( R \subseteq A \times A \) is antisymmetric,
 -- i.e., \( R \cap R^{-1} \subseteq R^{0} \).
 anti_symmetric :: ( Ix a ) => Relation a a -> Bit
 anti_symmetric r = implies (intersection r (mirror r)) (identity (bounds r))
+
+-- | Tests if a relation \( R \subseteq A \times A \) is transitive, i.e.,
+-- \( \forall x, y \in A: ((x,y) \in R) \land ((y,z) \in R) \rightarrow ((x,z) \in R) \).
+transitive :: ( Ix a )
+           => Relation a a -> Bit
+transitive r = implies (product r r) r
 
 -- | Tests if a relation \( R \subseteq A \times A \) is irreflexive, i.e.,
 -- \( R \cap R^{0} = \emptyset \).
@@ -137,11 +155,127 @@ out_degree_helper f deg r = and $ do
         y <- range (b,d)
         return $ r ! (x,y)
 
--- | Tests if a relation \( R \subseteq A \times A \) is transitive, i.e.,
--- \( R \circ R = R \).
+-- | @transitive_reduction_of r s@ tests whether \(R \subseteq A \times A \) is
+-- the transitive reduction of \(S \subseteq A \times A \), i.e. if \( S \) is
+-- the smallest relation whose transitive closure \( S^{+} \) is identical to
+-- that of \( R \).
 --
--- Formula size: linear in \( |A|^3 \)
-transitive :: ( Ix a )
-           => Relation a a -> Bit
-transitive r = implies (product r r) r
+-- This tests that \( S^{+} = R^{+} \), but does not also directly test that
+-- there is no \( T \subseteq A \times A \) smaller than \( S \) with the same
+-- transitive closure as \( R \): that is a property that is expensive to verify
+-- when correct. Instead, this also tests that certain constraints hold for every
+-- \( (x, y) \in S \) which are only true of transitive reductions.
+--
+-- Before stating those constraints, note that \( R, S \) can be interpreted
+-- as directed graphs, and that while the transitive reduction of a directed
+-- /acyclic/ graph (i.e. one where the reachability relation is a partial order)
+-- is unique (and given by the covering relation associated with the reachability
+-- relation), in the general case, the transitive reduction of an arbitrary
+-- \( R \) is not uniquely defined.
+--
+-- This definition uses two types of constraints on edges that any transitive reduction
+-- \( S \) of \( R \) must satisfy:
+--
+--   - one type ensures the number of edges in \( S \) /within/ strongly connected
+--     components of \( R \) is minimal
+--   - The other ensures that the number of edges /between/ strongly connected
+--     components is minimal.
+--
+--  Altogether then, \( S \) is a transitive reduction of \( R \) iff:
+--
+--   1. \( S^{+} = R^{+} \).
+--   2. \( S \subseteq R \).
+--   3. For each set of vertices in a strongly connected component of
+--      \( R^{+} \), there is a directed cycle in \( S \) among those
+--      vertices.
+--   4. For any two sets of vertices defining distinct strongly connected components
+--      \( X \subset A \), \( Z \subseteq A \) where \( Z \) is reachable from \( X \):
+--
+--        - There is at most one edge in \( S \) from \( X \) to \( Z \).
+--        - There is no edge iff there is any distinct third strongly
+--          connected component \( Y \subseteq A \) where the vertices of \( Y \)
+--          are reachable from \( X \) and the vertices of \( Z \) are reachable
+--          from \( Y \).
+transitive_reduction_of :: forall a. ( Ix a, Equatable a )
+  => Relation a a
+  -> Relation a a
+  -> Bit
+transitive_reduction_of tr r =
+    let
+       -- TODO Remove after #78 is merged
+       domain_ = range . (fst *** fst) . bounds
 
+       pairs :: (Applicative f) => f a -> f (a,a)
+       pairs = uncurry (liftA2 (,)) . (id &&& id)
+
+       -- True iff there is exactly 1 b ∈ bs s.t. p b.
+       existsUnique :: [b] -> (b -> Bit) -> Bit
+       existsUnique = exactly 1 .: (<&>)
+
+       -- True iff p x and there is at most 1 y ∈ ys such that p y.
+       -- Does not check whether x ∈ ys. (Not relevant in this local context.)
+       isThe :: (Equatable b) => [b] -> (b -> Bit) -> b -> Bit
+       isThe ys p x = p x && existsUnique ys p
+
+       mutuallyReachable s x y = s ! (x,y) &&      s ! (y,x)
+       oneWay            s x y = s ! (x,y) && not (s ! (y,x))
+
+       universe_  = domain_             r
+       closure_r  = transitive_closure  r
+
+       -- An SCC is trivial iff it consists of a single vertex
+       -- and that vertex has no path to itself.
+       sameNontrivialScc :: a -> a -> Bit
+       sameNontrivialScc = mutuallyReachable closure_r
+
+       -- A singleton SCC is a non-trivial SCC that consists of a single vertex.
+       singletonScc :: a -> Bit
+       singletonScc = existsUnique universe_ . sameNontrivialScc
+
+       -- True iff
+       --   - x and y are in the same SCC.
+       --   - x is the unique predecessor of y and y is the unique successor of
+       --     x in the directed cycle of their common SCC.
+       pred_ :: a -> a -> Bit
+       -- The first term in the xor here is redundant with the other, but
+       -- empirically seems useful to include for performance.
+       -- The `xor` also entails that the second term can only be satisfied
+       -- when x /= y.
+       pred_ x y =  (   singletonScc x && x === y)
+                 `xor`
+                    (  isThe universe_  -- x is the unique element in y's SCC
+                             (\z ->     -- preceding y in tr.
+                                sameNontrivialScc x z
+                             && tr ! (z,y))
+                             x
+                    && isThe universe_  -- y is the unique element in x's SCC
+                             (\z ->     -- succeeding x in tr.
+                                sameNontrivialScc x z
+                             && tr ! (x,z))
+                             y)
+
+       -- The 'sameNontrivialScc' check is redundant with pred_;
+       -- including it may help and doesn't seem to hurt.
+       sccEdge      x y =    sameNontrivialScc x y
+                          && pred_             x y
+       interSccEdge x z =    oneWay closure_r  x z    -- This entails that
+                                                      -- the scc of x /= the scc
+                                                      -- of z.
+                          && atmost 0 (   universe_   -- There is no distinct
+                                      <&> (\y ->      -- third SCC 'between' those of
+                                                      -- x and z.
+                                             oneWay closure_r x y
+                                          && oneWay closure_r y z))
+                          && isThe (pairs universe_)  -- (x,z) is the only edge
+                                   (\(u,v) ->         -- directly connecting the
+                                         tr ! (u,v)   -- respective SCCs of x+z.
+                                      && sameNontrivialScc x u
+                                      && sameNontrivialScc z v)
+                                   (x,z)
+
+       in   all (\(x,y) ->
+                tr ! (x,y)
+                ==> (  r ! (x,y)
+                    && (interSccEdge x y `xor` sccEdge x y)))
+             (pairs universe_)
+          && closure_r `equals` transitive_closure tr
