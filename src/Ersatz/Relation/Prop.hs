@@ -36,7 +36,7 @@ import Ersatz.Bit
 import Ersatz.Relation.Data
 import Ersatz.Relation.Op
 import Ersatz.Counting
-import Ersatz.Equatable ( Equatable, (===) )
+import Ersatz.Equatable ( Equatable, (===), (/==) )
 
 import Data.Ix
 
@@ -278,4 +278,4 @@ transitive_reduction_of tr r =
                 ==> (  r ! (x,y)
                     && (interSccEdge x y `xor` sccEdge x y)))
              (pairs universe_)
-          && closure_r `equals` transitive_closure tr
+          && closure_r === transitive_closure tr

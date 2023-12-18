@@ -158,4 +158,4 @@ equivalence_closure r =
 -- \( R \subseteq A \times A \), \( R - I_A \).
 reflexive_reduction :: ( Ix a, Equatable a ) => Relation a a -> Relation a a
 reflexive_reduction r =
-    buildFrom (bounds r) (\x y -> x /== y && r ! (x,y))
+    buildFrom (bounds r) (\(x,y) -> x /== y && r ! (x,y))

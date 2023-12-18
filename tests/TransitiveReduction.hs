@@ -138,7 +138,6 @@ import Ersatz.Relation
   , elems
   , transitive_closure
   , transitive_reduction_of
-  , equals
   )
 
 
@@ -301,7 +300,7 @@ total_order = uncurry (&&) . (partial_order &&& total)
 
 sameTransitiveClosure :: (Ix a) => Relation a a -> Relation a a -> Bit
 sameTransitiveClosure =
-  uncurry equals . (transitive_closure *** transitive_closure) .: (,)
+  uncurry (===) . (transitive_closure *** transitive_closure) .: (,)
 
 card :: (Ix a) => Relation a a -> Bits
 card = sumBit . elems
