@@ -9,7 +9,8 @@ module Ersatz.Relation.Data (
 , buildFrom, buildFromM
 , identity
 -- * Components
-, bounds, (!), indices, assocs, elems
+, bounds, domBounds, codBounds
+, (!), indices, assocs, elems
 , domain, codomain, universe
 , universeSize
 , is_homogeneous
@@ -19,6 +20,7 @@ module Ersatz.Relation.Data (
 )  where
 
 import Prelude hiding ( and, (&&), any )
+import Control.Arrow ( (***), (&&&) )
 
 import Ersatz.Bit
 import Ersatz.Bits ( Bits, sumBit )
@@ -134,6 +136,17 @@ identity ((a,b),(c,d))
 bounds :: (Ix a, Ix b) => Relation a b -> ((a,b),(a,b))
 bounds ( Relation r ) = A.bounds r
 
+-- | The bounds of the domain dimension of the matrix representation of the
+-- given relation.
+domBounds :: (Ix a, Ix b) => Relation a b -> (a, a)
+domBounds = (fst *** fst) . bounds
+
+-- | The bounds of the codomain dimension of the matrix representation of the
+-- given relation.
+codBounds :: (Ix a, Ix b) => Relation a b -> (b, b)
+codBounds = (snd *** snd) . bounds
+
+
 -- | The list of indices, where each index represents an element \( (x,y) \in A \times B \) 
 -- that may be contained in the given relation \(R \subseteq A \times B \).
 --
@@ -184,15 +197,11 @@ Relation r ! p = r A.! p
 
 -- | The domain \(A\) of a relation \(R \subseteq A \times B\). 
 domain :: (Ix a, Ix b) => Relation a b -> [a]
-domain r =
-  let ((x,_),(x',_)) = bounds r
-  in A.range (x,x')
+domain = A.range . domBounds
 
 -- | The codomain \(B\) of a relation \(R \subseteq A \times B\). 
 codomain :: (Ix a, Ix b) => Relation a b -> [b]
-codomain r =
-  let ((_,y),(_,y')) = bounds r
-  in A.range (y,y')
+codomain = A.range . codBounds
 
 -- | The universe \(A\) of a relation \(R \subseteq A \times A\). 
 universe :: Ix a => Relation a a -> [a]
@@ -203,16 +212,12 @@ universe r
 -- | The size of the universe \(A\) of a relation \(R \subseteq A \times A\). 
 universeSize :: Ix a => Relation a a -> Int
 universeSize r 
-  | is_homogeneous r =
-      let ((a,_),(c,_)) = bounds r
-      in A.rangeSize (a,c)
+  | is_homogeneous r = A.rangeSize . domBounds $ r
   | otherwise = error "Relation is not homogeneous!"
 
 -- | Tests if a relation is homogeneous, i.e., if the domain is equal to the codomain.
 is_homogeneous :: Ix a => Relation a a -> Bool
-is_homogeneous r =
-  let ((a,b),(c,d)) = bounds r 
-  in (a == b) && (c == d)
+is_homogeneous = uncurry (==) . (domBounds &&& codBounds)
 
 -- | The number of pairs \( (x,y) \in R \) for the given relation
 -- \( R \subseteq A \times B \).

@@ -34,7 +34,11 @@ import Data.Ix
 
 
 instance (Ix a, Ix b) => Equatable (Relation a b) where
-  r === s = and [implies r s, implies s r]
+  r === s
+    | bounds r /= bounds s =
+      error "Relations don't have the same bounds!"
+    | otherwise =
+      and $ zipWith (===) (elems r) (elems s)
   r /== s = not $ r === s
 
 -- | Given two relations \( R, S \subseteq A \times B \), check if \(R\) is a subset of \(S\).

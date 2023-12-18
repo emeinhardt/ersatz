@@ -8,6 +8,7 @@ module Ersatz.Relation.Op
 , union
 , complement
 , difference
+, symmetric_difference
 , product, power
 , intersection
 , reflexive_closure
@@ -42,12 +43,22 @@ complement r =
     build (bounds r) $ do i <- indices r ; return ( i, not $ r!i )
 
 -- | Constructs the difference \( R \setminus S \) of the relations 
--- \(R, S \subseteq A \times B \), that contains all elements that are in \(R\) but not in \(S\), i.e.,
+-- \(R, S \subseteq A \times B \) containing all elements that are in \(R\)
+-- but not in \(S\), i.e.,
 -- \( R \setminus S = \{ (x,y) \in R ~|~ (x,y) \notin S \} \).
 difference :: ( Ix a , Ix b )
-        => Relation a b -> Relation a b ->  Relation a b
+        => Relation a b -> Relation a b -> Relation a b
 difference r s =
     intersection r $ complement s
+
+-- | Constructs the symmetric difference
+-- \( (R \setminus S) \cup (S \setminus R) \) of the arguments.
+symmetric_difference :: ( Ix a, Ix b )
+        => Relation a b -> Relation a b -> Relation a b
+symmetric_difference r s
+    | bounds r /= bounds s = error "Relations don't have the same bounds!"
+    | otherwise =
+      buildFrom (bounds r) (\xy -> (r ! xy) `xor` (s ! xy) )
 
 -- | Constructs the union \( R \cup S \) of the relations \( R, S \subseteq A \times B \).
 union :: ( Ix a , Ix b )

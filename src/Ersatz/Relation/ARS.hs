@@ -183,7 +183,7 @@ connected r = complete $ equivalence_closure r
 -- Formula size: linear in \( |A| \)
 is_nf :: Ix a => a -> Relation a a -> Bit
 is_nf x r =
-  let ((_,b),(_,d)) = bounds r
+  let (b,d) = codBounds r
   in nor $ map (r !) $ range ((x,b),(x,d))
 
 -- | Tests if a relation \( R \subseteq A \times A \) has the normal form property, 
