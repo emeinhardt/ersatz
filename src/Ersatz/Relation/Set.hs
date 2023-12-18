@@ -74,13 +74,19 @@ import Prelude hiding
   , (||)
   , any
   )
-import Data.Composition
-  ( (.:)
-  )
+-- import Data.Composition
+--   ( (.:)
+--   )
 import Control.Arrow
   ( (***)
   , (&&&)
   , first
+  )
+import Control.Lens.Combinators
+  ( Profunctor ( dimap
+               , lmap
+               , rmap
+               )
   )
 
 import GHC.Generics
@@ -142,6 +148,29 @@ import Data.Array
 
 
 -- Helpers for shuffling between 'Set a' and 'Relation a ()' or components
+
+-- | Wrap a function taking two arguments with preprocessors and a postprocessor.
+dimap2 ::
+     (a -> x) -> (b -> y)
+  -> (z -> c)
+  -> (x -> y -> z)
+  -> (a -> b -> c)
+dimap2 preL preR post f = curry $ dimap (preL *** preR) post (uncurry f)
+
+-- | Preprocess the inputs of a function taking two arguments.
+lmap2 ::
+     (a -> x) -> (b -> y)
+  -> (x -> y -> c)
+  -> (a -> b -> c)
+lmap2 preL preR f = curry $ lmap (preL *** preR) (uncurry f)
+
+-- | Postprocess the result of a function taking two arguments.
+rmap2 ::
+     (x -> c)
+  -> (a -> b -> x)
+  -> (a -> b -> c)
+rmap2 post f = rmap post . f
+
 
 pad :: a -> (a, ())
 pad = (,())
@@ -205,19 +234,22 @@ instance (Ix a) => Codec (Set a) where
     => Solution
     -> Set a
     -> Maybe (Decoded (Set a))
-  decode sol = fmap unRelArray_ . decode sol . unSet
+  decode sol = dimap unSet (fmap unRelArray_) $ decode sol
+  -- decode sol = fmap unRelArray_ . decode sol . unSet
 
   encode :: Ix a
     => Array a Bool
     -> Set a
-  encode = Set . encode . relArray_
+  encode = dimap relArray_ Set encode
+  -- encode = Set . encode . relArray_
 
 -- | Using the provided bounds \( (a_{min}, a_{max}) \), construct a symbolic
 -- Set \( S \subseteq A \) for the universe \( A = a_{min} \ldots a_{max} \).
 set :: (Ix a, MonadSAT s m)
   => (a,a)
   -> m (Set a)
-set = fmap Set . relation . relBounds_
+set = dimap relBounds_ (fmap Set) relation
+-- set = fmap Set . relation . relBounds_
 
 -- | Construct a set \(S \subseteq A \) from a list.
 build :: (Ix a)
@@ -225,10 +257,11 @@ build :: (Ix a)
   -> [(a,Bit)]
   -> Set a
 build =
-  Set
-  . uncurry RD.build
-  . (relBounds_ *** fmap relAssoc_)
-  .: (,)
+  dimap2 relBounds_ (fmap relAssoc_) Set RD.build
+  -- Set
+  -- . uncurry RD.build
+  -- . (relBounds_ *** fmap relAssoc_)
+  -- .: (,)
 
 -- | Construct a set \(S \subseteq A \) from a predicate.
 buildFrom :: (Ix a)
@@ -236,10 +269,11 @@ buildFrom :: (Ix a)
   -> (a -> Bit)
   -> Set a
 buildFrom =
-  Set
-  . uncurry RD.buildFrom
-  . (relBounds_ *** lift_)
-  .: (,)
+  dimap2 relBounds_ lift_ Set RD.buildFrom
+  -- Set
+  -- . uncurry RD.buildFrom
+  -- . (relBounds_ *** lift_)
+  -- .: (,)
 
 -- | Construct an indeterminate set \(S \subseteq A \) from a predicate.
 buildFromM :: (Ix a, MonadSAT s m)
@@ -247,10 +281,11 @@ buildFromM :: (Ix a, MonadSAT s m)
   -> (a -> m Bit)
   -> m (Set a)
 buildFromM =
-  fmap Set
-  . uncurry RD.buildFromM
-  . (relBounds_ *** lift_)
-  .: (,)
+  dimap2 relBounds_ lift_ (fmap Set) RD.buildFromM
+  -- fmap Set
+  -- . uncurry RD.buildFromM
+  -- . (relBounds_ *** lift_)
+  -- .: (,)
 
 -- | Construct a symbolic set \( \Omega \subseteq A \) from bounds where, by
 -- construction, every element within the bounds is contained in the set.
@@ -280,25 +315,30 @@ singleton bnd a =
 
 -- | The bounds of the array representing the set.
 bounds :: (Ix a) => Set a -> (a,a)
-bounds = unRelBounds_ . RD.bounds . coerce
+bounds = dimap coerce unRelBounds_ RD.bounds
+  -- unRelBounds_ . RD.bounds . coerce
 
 -- | The list of indices of the array representing the set.
 indices :: (Ix a) => Set a -> [a]
-indices = fmap unPad . RD.indices . coerce
+indices = dimap coerce (fmap unPad) RD.indices
+  -- fmap unPad . RD.indices . coerce
 
 -- | The list of tuples for the given set \(S \subseteq A \), where the first
 -- element is an index and the second element is a 'Bit' indicating whether the
 -- element is contained in the represented set.
 assocs :: (Ix a) => Set a -> [(a, Bit)]
-assocs = fmap unRelAssoc_ . RD.assocs . coerce
+assocs = dimap coerce (fmap unRelAssoc_) RD.assocs
+  -- fmap unRelAssoc_ . RD.assocs . coerce
 
 -- | The list of elements of the array that represents the given set.
 elems :: (Ix a) => Set a -> [Bit]
-elems = RD.elems . coerce
+elems = lmap coerce RD.elems
+        -- RD.elems . coerce
 
 -- | Synonym for 'indices', provided for parallelism with 'Data.Relation'.
 universe :: (Ix a) => Set a -> [a]
-universe = RD.domain . coerce
+universe = lmap coerce RD.domain
+           -- RD.domain . coerce
 
 -- | The size of the universe that a symbolic (sub)set is a subset of.
 universeSize :: (Ix a) => Set a -> Int
@@ -311,14 +351,15 @@ universeSize = A.rangeSize . bounds
 -- | The number of elements \( |S| \) contained in the given symbolic subset
 -- \( S \subseteq A \).
 card :: (Ix a) => Set a -> Bits
-card = RD.card . coerce
+card = lmap coerce RD.card
+  -- RD.card . coerce
 
 -- | @s ! a@ tests if \( a \in S \).
 (!) :: (Ix a) => Set a -> a -> Bit
-(!) =
-  uncurry (RD.!)
-  . (coerce *** pad)
-  .: (,)
+(!) = lmap2 coerce pad (RD.!)
+  -- uncurry (RD.!)
+  -- . (coerce *** pad)
+  -- .: (,)
 
 -- | Flipped, non-infix synonym for '!'.
 member :: (Ix a) => a -> Set a -> Bit
@@ -326,22 +367,25 @@ member = flip (!)
 
 -- | Tests if the set is empty.
 null :: (Ix a) => Set a -> Bit
-null = RP.empty . coerce
+null = lmap coerce RP.empty
+  -- RP.empty . coerce
 
 -- | @s \`subsetEq\` r@ tests if \( S \subseteq R \).
 subsetEq :: (Ix a) => Set a -> Set a -> Bit
-subsetEq =
-  uncurry RP.implies
-  . (coerce *** coerce)
-  .: (,)
+subsetEq = lmap2 coerce coerce RP.implies
+  -- uncurry RP.implies
+  -- . (coerce *** coerce)
+  -- .: (,)
 
 -- | @s \`subsetProper\` r@ tests if \( S \subset R \).
 subsetProper :: (Ix a) => Set a -> Set a -> Bit
-subsetProper = not . null .: difference
+subsetProper = rmap2 (not . null) difference
+  -- not . null .: difference
 
 -- | @s \`disjoint\` r@ tests if \( S \cap R = \varnothing \).
 disjoint :: (Ix a) => Set a -> Set a -> Bit
-disjoint = null .: intersection
+disjoint = rmap2 null intersection
+  -- null .: intersection
 
 
 
@@ -367,43 +411,43 @@ del s a
 -- \( \Omega \subset A \), construct the complement of \( S \) with respect to
 -- \( \Omega \), i.e. \( \Omega \setminus S \).
 complement :: (Ix a) => Set a -> Set a
-complement =
-  Set
-  . RO.complement
-  . coerce
+complement = dimap coerce Set RO.complement
+  -- Set
+  -- . RO.complement
+  -- . coerce
 
 -- | Construct the union \( S \cup R \) of the two provided sets.
 union :: (Ix a) => Set a -> Set a -> Set a
-union =
-  Set
-  . uncurry RO.union
-  . (coerce *** coerce)
-  .: (,)
+union = dimap2 coerce coerce Set RO.union
+  -- Set
+  -- . uncurry RO.union
+  -- . (coerce *** coerce)
+  -- .: (,)
 
 -- | Construct the intersection \( S \cap R \) of the two provided sets.
 intersection :: (Ix a) => Set a -> Set a -> Set a
-intersection =
-  Set
-  . uncurry RO.intersection
-  . (coerce *** coerce)
-  .: (,)
+intersection = dimap2 coerce coerce Set RO.intersection
+  -- Set
+  -- . uncurry RO.intersection
+  -- . (coerce *** coerce)
+  -- .: (,)
 
 -- | Construct the difference \( S \setminus R \) of the two provided sets.
 difference :: (Ix a) => Set a -> Set a -> Set a
-difference =
-  Set
-  . uncurry RO.difference
-  . (coerce *** coerce)
-  .: (,)
+difference = dimap2 coerce coerce Set RO.difference
+  -- Set
+  -- . uncurry RO.difference
+  -- . (coerce *** coerce)
+  -- .: (,)
 
 -- | Construct the symmetric difference
 -- \( (S \setminus R) \cup (R \setminus S) \) of the two provided sets.
 symmetric_difference :: (Ix a) => Set a -> Set a -> Set a
-symmetric_difference =
-  Set
-  . uncurry RO.symmetric_difference
-  . (coerce *** coerce)
-  .: (,)
+symmetric_difference = dimap2 coerce coerce Set RO.symmetric_difference
+  -- Set
+  -- . uncurry RO.symmetric_difference
+  -- . (coerce *** coerce)
+  -- .: (,)
 
 
 
