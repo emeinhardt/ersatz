@@ -1,3 +1,9 @@
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveFunctor #-}
+#if __GLASGOW_HASKELL__ >= 802
+{-# LANGUAGE DerivingStrategies #-}
+#endif
 --------------------------------------------------------------------
 -- |
 -- Copyright :  © Edward Kmett 2010-2014, Johan Kiviniemi 2013
@@ -11,6 +17,10 @@ module Ersatz.Solver.Common
   ( withTempFiles
   , resultOf
 
+  , SolverArg ( SolverFlag
+              , SolverOption
+              )
+
   -- * Support for trying many solvers
   , trySolvers
   , NoSolvers(..)
@@ -20,12 +30,13 @@ module Ersatz.Solver.Common
 
 import Control.Exception (Exception(..), throwIO)
 import Control.Monad.IO.Class
+import Data.IntMap (IntMap)
+import qualified Data.IntMap.Strict as IntMap
 import Ersatz.Solution
+import GHC.Generics (Generic)
 import System.Exit (ExitCode(..))
 import System.IO.Error (tryIOError)
 import System.IO.Temp (withSystemTempDirectory)
-import Data.IntMap (IntMap)
-import qualified Data.IntMap.Strict as IntMap
 
 withTempFiles :: MonadIO m
               => FilePath  -- ^ Problem file extension including the dot, if any
@@ -42,6 +53,17 @@ resultOf :: ExitCode -> Result
 resultOf (ExitFailure 10) = Satisfied
 resultOf (ExitFailure 20) = Unsatisfied
 resultOf _                = Unsolved
+
+
+data SolverArg a = SolverFlag   String
+                 | SolverOption String a
+#if __GLASGOW_HASKELL__ >= 802
+  deriving stock (Eq, Ord, Show, Generic, Functor)
+#endif
+#if __GLASGOW_HASKELL__ < 802
+  deriving (Eq, Ord, Show, Generic, Functor)
+#endif
+
 
 -- | This error is thrown by 'trySolvers' when no solvers are found.
 newtype NoSolvers = NoSolvers [IOError] deriving Show

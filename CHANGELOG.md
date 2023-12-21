@@ -9,6 +9,7 @@ next [????.??.??]
   ```
 * Add support for `kissat` and the `lingeling` trio (`lingeling`, `plingeling`,
   `treengeling`) of SAT solvers.
+* Add support for passing options to solvers.
 
 0.5 [2023.09.08]
 ----------------
