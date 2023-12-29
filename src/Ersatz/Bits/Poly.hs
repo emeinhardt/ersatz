@@ -1,5 +1,10 @@
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 --------------------------------------------------------------------
 -- |
 -- Copyright :  © Edward Kmett 2010-2015, © Eric Mertens 2014, Johan Kiviniemi 2013
@@ -20,7 +25,7 @@
 
 
 --------------------------------------------------------------------
-module Ersatz.Bits
+module Ersatz.Bits.Poly
   (
   -- * Fixed length bit vectors
     Bit1(..), Bit2(..), Bit3(..), Bit4(..), Bit5(..), Bit6(..), Bit7(..), Bit8(..)
@@ -36,112 +41,153 @@ module Ersatz.Bits
   ) where
 
 import Control.Applicative
-import Control.Monad.Trans.State (State, runState, get, put)
+import Control.Monad.Trans.State (State, runState, get, put, StateT)
 import Data.Bits ((.&.), (.|.), shiftL, shiftR)
 import qualified Data.Bits as Data
 import Data.Foldable (toList)
+import Data.Functor.Identity (Identity)
 import Data.List (unfoldr, foldl')
 import Data.Stream.Infinite (Stream(..))
 import Data.Word (Word8)
 import Ersatz.Bit
 import Ersatz.Codec
-import Ersatz.Equatable
-import Ersatz.Orderable
+import Ersatz.Equatable.Poly
+import Ersatz.Orderable.Poly
 import Ersatz.Variable
 import GHC.Generics
 import Prelude hiding (and, or, not, (&&), (||))
 
 -- | A container of 1 'Bit' that 'encode's from and 'decode's to 'Word8'.
-newtype Bit1 = Bit1 Bit deriving (Show,Generic)
+newtype Bit1 b = Bit1 b deriving (Show,Generic)
 -- | A container of 2 'Bit's that 'encode's from and 'decode's to 'Word8'. MSB is first.
-data Bit2 = Bit2 !Bit !Bit deriving (Show,Generic)
+data Bit2 b = Bit2 !b !b deriving (Show,Generic)
 -- | A container of 3 'Bit's that 'encode's from and 'decode's to 'Word8'. MSB is first.
-data Bit3 = Bit3 !Bit !Bit !Bit deriving (Show,Generic)
+data Bit3 b = Bit3 !b !b !b deriving (Show,Generic)
 -- | A container of 4 'Bit's that 'encode's from and 'decode's to 'Word8'. MSB is first.
-data Bit4 = Bit4 !Bit !Bit !Bit !Bit deriving (Show,Generic)
+data Bit4 b = Bit4 !b !b !b !b deriving (Show,Generic)
 -- | A container of 5 'Bit's that 'encode's from and 'decode's to 'Word8'. MSB is first.
-data Bit5 = Bit5 !Bit !Bit !Bit !Bit !Bit deriving (Show,Generic)
+data Bit5 b = Bit5 !b !b !b !b !b deriving (Show,Generic)
 -- | A container of 6 'Bit's that 'encode's from and 'decode's to 'Word8'. MSB is first.
-data Bit6 = Bit6 !Bit !Bit !Bit !Bit !Bit !Bit deriving (Show,Generic)
+data Bit6 b = Bit6 !b !b !b !b !b !b deriving (Show,Generic)
 -- | A container of 7 'Bit's that 'encode's from and 'decode's to 'Word8'. MSB is first.
-data Bit7 = Bit7 !Bit !Bit !Bit !Bit !Bit !Bit !Bit deriving (Show,Generic)
+data Bit7 b = Bit7 !b !b !b !b !b !b !b deriving (Show,Generic)
 -- | A container of 8 'Bit's that 'encode's from and 'decode's to 'Word8'. MSB is first.
-data Bit8 = Bit8 !Bit !Bit !Bit !Bit !Bit !Bit !Bit !Bit deriving (Show,Generic)
+data Bit8 b = Bit8 !b !b !b !b !b !b !b !b deriving (Show,Generic)
 
-instance Boolean Bit1
-instance Boolean Bit2
-instance Boolean Bit3
-instance Boolean Bit4
-instance Boolean Bit5
-instance Boolean Bit6
-instance Boolean Bit7
-instance Boolean Bit8
+instance (Boolean b) => Boolean (Bit1 b)
+instance (Boolean b) => Boolean (Bit2 b)
+instance (Boolean b) => Boolean (Bit3 b)
+instance (Boolean b) => Boolean (Bit4 b)
+instance (Boolean b) => Boolean (Bit5 b)
+instance (Boolean b) => Boolean (Bit6 b)
+instance (Boolean b) => Boolean (Bit7 b)
+instance (Boolean b) => Boolean (Bit8 b)
 
-instance Equatable Bit1
-instance Equatable Bit2
-instance Equatable Bit3
-instance Equatable Bit4
-instance Equatable Bit5
-instance Equatable Bit6
-instance Equatable Bit7
-instance Equatable Bit8
+instance (Equatable b τ) => Equatable (Bit1 b) τ
+instance (Equatable b τ) => Equatable (Bit2 b) τ
+instance (Equatable b τ) => Equatable (Bit3 b) τ
+instance (Equatable b τ) => Equatable (Bit4 b) τ
+instance (Equatable b τ) => Equatable (Bit5 b) τ
+instance (Equatable b τ) => Equatable (Bit6 b) τ
+instance (Equatable b τ) => Equatable (Bit7 b) τ
+instance (Equatable b τ) => Equatable (Bit8 b) τ
 
-instance Orderable Bit1
-instance Orderable Bit2
-instance Orderable Bit3
-instance Orderable Bit4
-instance Orderable Bit5
-instance Orderable Bit6
-instance Orderable Bit7
-instance Orderable Bit8
+instance Orderable b τ => Orderable (Bit1 b) τ
+instance Orderable b τ => Orderable (Bit2 b) τ
+instance Orderable b τ => Orderable (Bit3 b) τ
+instance Orderable b τ => Orderable (Bit4 b) τ
+instance Orderable b τ => Orderable (Bit5 b) τ
+instance Orderable b τ => Orderable (Bit6 b) τ
+instance Orderable b τ => Orderable (Bit7 b) τ
+instance Orderable b τ => Orderable (Bit8 b) τ
 
-instance Variable Bit1
-instance Variable Bit2
-instance Variable Bit3
-instance Variable Bit4
-instance Variable Bit5
-instance Variable Bit6
-instance Variable Bit7
-instance Variable Bit8
+instance Variable b => Variable (Bit1 b)
+instance Variable b => Variable (Bit2 b)
+instance Variable b => Variable (Bit3 b)
+instance Variable b => Variable (Bit4 b)
+instance Variable b => Variable (Bit5 b)
+instance Variable b => Variable (Bit6 b)
+instance Variable b => Variable (Bit7 b)
+instance Variable b => Variable (Bit8 b)
 
-instance Codec Bit1 where
-  type Decoded Bit1 = Word8
+instance Codec (Bit1 Bit) where
+  type Decoded (Bit1 Bit) = Word8
   decode s (Bit1 a) = boolsToNum1 <$> decode s a
   encode i = Bit1 a where (a:>_) = bitsOf i
 
-instance Codec Bit2 where
-  type Decoded Bit2 = Word8
+instance Codec (Bit2 Bit) where
+  type Decoded (Bit2 Bit) = Word8
   decode s (Bit2 a b) = boolsToNum2 <$> decode s a <*> decode s b
   encode i = Bit2 a b where (b:>a:>_) = bitsOf i
 
-instance Codec Bit3 where
-  type Decoded Bit3 = Word8
+instance Codec (Bit3 Bit) where
+  type Decoded (Bit3 Bit) = Word8
   decode s (Bit3 a b c) = boolsToNum3 <$> decode s a <*> decode s b <*> decode s c
   encode i = Bit3 a b c where (c:>b:>a:>_) = bitsOf i
 
-instance Codec Bit4 where
-  type Decoded Bit4 = Word8
+instance Codec (Bit4 Bit) where
+  type Decoded (Bit4 Bit) = Word8
   decode s (Bit4 a b c d) = boolsToNum4 <$> decode s a <*> decode s b <*> decode s c <*> decode s d
   encode i = Bit4 a b c d where (d:>c:>b:>a:>_) = bitsOf i
 
-instance Codec Bit5 where
-  type Decoded Bit5 = Word8
+instance Codec (Bit5 Bit) where
+  type Decoded (Bit5 Bit) = Word8
   decode s (Bit5 a b c d e) = boolsToNum5 <$> decode s a <*> decode s b <*> decode s c <*> decode s d <*> decode s e
   encode i = Bit5 a b c d e where (e:>d:>c:>b:>a:>_) = bitsOf i
 
-instance Codec Bit6 where
-  type Decoded Bit6 = Word8
+instance Codec (Bit6 Bit) where
+  type Decoded (Bit6 Bit) = Word8
   decode s (Bit6 a b c d e f) = boolsToNum6 <$> decode s a <*> decode s b <*> decode s c <*> decode s d <*> decode s e <*> decode s f
   encode i = Bit6 a b c d e f where (f:>e:>d:>c:>b:>a:>_) = bitsOf i
 
-instance Codec Bit7 where
-  type Decoded Bit7 = Word8
+instance Codec (Bit7 Bit) where
+  type Decoded (Bit7 Bit) = Word8
   decode s (Bit7 a b c d e f g) = boolsToNum7 <$> decode s a <*> decode s b <*> decode s c <*> decode s d <*> decode s e <*> decode s f <*> decode s g
   encode i = Bit7 a b c d e f g where (g:>f:>e:>d:>c:>b:>a:>_) = bitsOf i
 
-instance Codec Bit8 where
-  type Decoded Bit8 = Word8
+instance Codec (Bit8 Bit) where
+  type Decoded (Bit8 Bit) = Word8
   decode s (Bit8 a b c d e f g h) = boolsToNum8 <$> decode s a <*> decode s b <*> decode s c <*> decode s d <*> decode s e <*> decode s f <*> decode s g <*> decode s h
+  encode i = Bit8 a b c d e f g h where (h:>g:>f:>e:>d:>c:>b:>a:>_) = bitsOf i
+
+instance Codec (Bit1 Bool) where
+  type Decoded (Bit1 Bool) = Word8
+  decode _ (Bit1 a) = Just $ boolsToNum1 a
+  encode i = Bit1 a where (a:>_) = bitsOf i
+
+instance Codec (Bit2 Bool) where
+  type Decoded (Bit2 Bool) = Word8
+  decode _ (Bit2 a b) = Just $ boolsToNum2 a b
+  encode i = Bit2 a b where (b:>a:>_) = bitsOf i
+
+instance Codec (Bit3 Bool) where
+  type Decoded (Bit3 Bool) = Word8
+  decode _ (Bit3 a b c) = Just $ boolsToNum3 a b c
+  encode i = Bit3 a b c where (c:>b:>a:>_) = bitsOf i
+
+instance Codec (Bit4 Bool) where
+  type Decoded (Bit4 Bool) = Word8
+  decode _ (Bit4 a b c d) = Just $ boolsToNum4 a b c d
+  encode i = Bit4 a b c d where (d:>c:>b:>a:>_) = bitsOf i
+
+instance Codec (Bit5 Bool) where
+  type Decoded (Bit5 Bool) = Word8
+  decode _ (Bit5 a b c d e) = Just $ boolsToNum5 a b c d e
+  encode i = Bit5 a b c d e where (e:>d:>c:>b:>a:>_) = bitsOf i
+
+instance Codec (Bit6 Bool) where
+  type Decoded (Bit6 Bool) = Word8
+  decode _ (Bit6 a b c d e f) = Just $ boolsToNum6 a b c d e f
+  encode i = Bit6 a b c d e f where (f:>e:>d:>c:>b:>a:>_) = bitsOf i
+
+instance Codec (Bit7 Bool) where
+  type Decoded (Bit7 Bool) = Word8
+  decode _ (Bit7 a b c d e f g) = Just $ boolsToNum7 a b c d e f g
+  encode i = Bit7 a b c d e f g where (g:>f:>e:>d:>c:>b:>a:>_) = bitsOf i
+
+instance Codec (Bit8 Bool) where
+  type Decoded (Bit8 Bool) = Word8
+  decode _ (Bit8 a b c d e f g h) = Just $ boolsToNum8 a b c d e f g h
   encode i = Bit8 a b c d e f g h where (h:>g:>f:>e:>d:>c:>b:>a:>_) = bitsOf i
 
 boolsToNum1 :: Bool -> Word8
@@ -168,7 +214,7 @@ boolsToNum7 a b c d e f g = boolsToNum [a,b,c,d,e,f,g]
 boolsToNum8 :: Bool -> Bool -> Bool -> Bool -> Bool -> Bool -> Bool -> Bool -> Word8
 boolsToNum8 a b c d e f g h = boolsToNum [a,b,c,d,e,f,g,h]
 
-bitsOf :: (Num a, Data.Bits a) => a -> Stream Bit
+bitsOf :: (Num a, Data.Bits a, Boolean b) => a -> Stream b
 bitsOf n = bool (numToBool (n .&. 1)) :> bitsOf (n `shiftR` 1)
 {-# INLINE bitsOf #-}
 
@@ -188,7 +234,7 @@ boolToNum True  = 1
 
 
 -- | This instance provides modular arithmetic (overflow is ignored).
-instance Num Bit1 where
+instance (Boolean b) => Num (Bit1 b) where
   Bit1 a + Bit1 b = Bit1 (xor a b)
   Bit1 a * Bit1 b = Bit1 (a && b)
   Bit1 a - Bit1 b = Bit1 (xor a b)
@@ -221,11 +267,10 @@ fullAdder a b c =
 
 -- | Compute the sum and carry bit from adding two bits.
 halfAdder :: (Boolean b) => b -> b -> (b, b) -- ^ (sum, carry)
--- halfAdder :: Bit -> Bit -> (Bit, Bit) -- ^ (sum, carry)
 halfAdder a b = (a `xor` b, a && b)
 
 -- | This instance provides modular arithmetic (overflow is ignored).
-instance Num Bit2 where
+instance (Boolean b) => Num (Bit2 b) where
   Bit2 a2 a1 + Bit2 b2 b1 = Bit2 s2 s1 where
     (s1,c2) = halfAdder a1 b1
     (s2,_)  = fullAdder a2 b2 c2
@@ -249,37 +294,35 @@ instance Num Bit2 where
 -- | A container of 'Bit's that is suitable for comparisons and arithmetic. Bits are stored
 -- with least significant bit first to enable phantom 'false' values
 -- to be truncated.
-newtype Bits = Bits { _getBits :: [Bit] }
+newtype Bits b = Bits { _getBits :: [b] }
 
-instance Show Bits where
+instance (Show b) => Show (Bits b) where
   showsPrec d (Bits xs) = showParen (d > 10) $
     showString "Bits " . showsPrec 11 xs
 
-instance Equatable Bits where
+instance (Boolean b, Equatable b Bit) => Equatable (Bits b) Bit where
   Bits xs === Bits ys = and (zipWithBits (===) xs ys)
   Bits xs /== Bits ys = or  (zipWithBits (/==) xs ys)
 
 -- | Zip the component bits of a 'Bits' extending the
 -- shorter argument with 'false' values.
 zipWithBits :: (Boolean b) => (b -> b -> a) -> [b] -> [b] -> [a]
--- zipWithBits :: (Bit -> Bit -> a) -> [Bit] -> [Bit] -> [a]
 zipWithBits _ []     []     = []
 zipWithBits f (x:xs) (y:ys) = f x y : zipWithBits f xs ys
 zipWithBits f xs     []     = map (`f` false) xs
 zipWithBits f []     ys     = map (false `f`) ys
 
-instance Orderable Bits where
+instance (Boolean b, Orderable b Bit) => Orderable (Bits b) Bit where
   Bits xs <?  Bits ys = orderHelper false xs ys
   Bits xs <=? Bits ys = orderHelper true  xs ys
 
--- orderHelper :: (Boolean b, Orderable b) => b -> [b] -> [b] -> b -- not possible becuase of a lack of relevant Orderable instances
-orderHelper :: Bit -> [Bit] -> [Bit] -> Bit
+orderHelper :: (Boolean b, Orderable b τ) => τ -> [b] -> [b] -> τ -- not possible becuase of a lack of relevant Orderable instances
 orderHelper c0 xs ys = foldl aux c0 (zipWithBits (,) xs ys)
     where
     aux c (x,y) = c && x === y || x <? y
 
-instance Codec Bits where
-  type Decoded Bits = Integer
+instance (Codec b, Boolean b, Decoded b ~ Bool) => Codec (Bits b) where
+  type Decoded (Bits b) = Integer
 
   decode s (Bits xs) =
     do ys <- traverse (decode s) xs
@@ -296,11 +339,11 @@ instance Codec Bits where
         EQ -> Nothing
         GT -> Just (if odd x then true else false, x `div` 2)
 
-unbits :: HasBits a => a -> [Bit]
+unbits :: HasBits a b => a -> [b]
 unbits a = case bits a of Bits xs -> xs
 
 -- | Add two 'Bits' values given an incoming carry bit.
-addBits :: (HasBits a, HasBits b) => Bit -> a -> b -> Bits
+addBits :: (HasBits a τ, HasBits b τ, Boolean τ) => τ -> a -> b -> Bits τ
 addBits c xs0 ys0 = Bits (add2 c (unbits xs0) (unbits ys0)) where
   add2 cin []     ys    = add1 cin ys
   add2 cin xs     []    = add1 cin xs
@@ -312,10 +355,10 @@ addBits c xs0 ys0 = Bits (add2 c (unbits xs0) (unbits ys0)) where
     (s,cout)            = halfAdder cin x
 
 -- | Compute the sum of a source of 'Bits' values.
-sumBits :: (Foldable t, HasBits a) => t a -> Bits
+sumBits :: (Foldable t, HasBits a τ, Boolean τ) => t a -> Bits τ
 sumBits = sumBits' . map bits . toList
 
-sumBits' :: [Bits] -> Bits
+sumBits' :: Boolean τ => [Bits τ] -> Bits τ
 sumBits' []  = Bits []
 sumBits' [x] = x
 sumBits' xs0 = sumBits (merge xs0) where
@@ -325,7 +368,7 @@ sumBits' xs0 = sumBits (merge xs0) where
 
 -- | Optimization of 'sumBits' enabled when summing
 -- individual 'Bit's.
-sumBit :: Foldable t => t Bit -> Bits
+sumBit :: forall t b. (Boolean b, Foldable t, HasBits b b) => t b -> Bits b
 sumBit t =
   case runState (merge (map bits h2)) h1 of
     (s,[]) -> s
@@ -335,18 +378,19 @@ sumBit t =
   ts = toList t
   (h1,h2) = splitAt ((length ts-1) `div` 2) ts
 
+  spareBit :: StateT [b] Identity b
   spareBit = do
     xs <- get
     case xs of
       []   -> return false
       y:ys -> put ys >> return y
 
-  merge :: [Bits] -> State [Bit] Bits
+  merge :: [Bits b] -> State [b] (Bits b)
   merge [x] = return x
   merge []  = return (Bits [])
   merge xs  = merge =<< merge' xs
 
-  merge' :: [Bits] -> State [Bit] [Bits]
+  merge' :: [Bits b] -> State [b] [Bits b]
   merge' []  = return []
   merge' [x] = return [x]
   merge' (x1:x2:xs) =
@@ -355,52 +399,52 @@ sumBit t =
        return (addBits cin x1 x2 : xs')
 
 -- | Predicate for odd-valued 'Bits's.
-isOdd :: HasBits b => b -> Bit
+isOdd :: (Boolean τ) => HasBits b τ => b -> τ
 isOdd b = case unbits b of
   []    -> false
   (x:_) -> x
 
 -- | Predicate for even-valued 'Bits's.
-isEven :: HasBits b => b -> Bit
+isEven :: (Boolean τ) => HasBits b τ => b -> τ
 isEven = not . isOdd
 
 -- | 'HasBits' provides the 'bits' method for embedding
 -- fixed with numeric encoding types into the arbitrary width
 -- 'Bits' type.
-class HasBits a where
-  bits :: a -> Bits
+class HasBits a b where
+  bits :: a -> Bits b
 
-instance HasBits Bit where
+instance HasBits Bit Bit where
   bits x = Bits [x]
 
-instance HasBits Bit1 where
+instance HasBits (Bit1 b) b where
   bits (Bit1 x0) = Bits [x0]
 
-instance HasBits Bit2 where
+instance HasBits (Bit2 b) b where
   bits (Bit2 x1 x0) = Bits [x0,x1]
 
-instance HasBits Bit3 where
+instance HasBits (Bit3 b) b where
   bits (Bit3 x2 x1 x0) = Bits [x0,x1,x2]
 
-instance HasBits Bit4 where
+instance HasBits (Bit4 b) b where
   bits (Bit4 x3 x2 x1 x0) = Bits [x0,x1,x2,x3]
 
-instance HasBits Bit5 where
+instance HasBits (Bit5 b) b where
   bits (Bit5 x4 x3 x2 x1 x0) = Bits [x0,x1,x2,x3,x4]
 
-instance HasBits Bit6 where
+instance HasBits (Bit6 b) b where
   bits (Bit6 x5 x4 x3 x2 x1 x0) = Bits [x0,x1,x2,x3,x4,x5]
 
-instance HasBits Bit7 where
+instance HasBits (Bit7 b) b where
   bits (Bit7 x6 x5 x4 x3 x2 x1 x0) = Bits [x0,x1,x2,x3,x4,x5,x6]
 
-instance HasBits Bit8 where
+instance HasBits (Bit8 b) b where
   bits (Bit8 x7 x6 x5 x4 x3 x2 x1 x0) = Bits [x0,x1,x2,x3,x4,x5,x6,x7]
 
-instance HasBits Bits where
+instance HasBits (Bits b) b where
   bits = id
 
-mulBits :: Bits -> Bits -> Bits
+mulBits :: (Boolean b) => Bits b -> Bits b -> Bits b
 mulBits (Bits xs) (Bits ys0)
   = sumBits
   $ zipWith aux xs (iterate times2 ys0)
@@ -418,7 +462,7 @@ mulBits (Bits xs) (Bits ys0)
 -- width of @a - b@ is @max (width a) (width b)@.
 --
 -- @fromInteger@ will raise 'error' for negative arguments.
-instance Num Bits where
+instance (Boolean b, Codec b, Decoded b ~ Bool) => Num (Bits b) where
   (+) = addBits false
   (*) = mulBits
   (-) = subBits
@@ -426,11 +470,11 @@ instance Num Bits where
   signum (Bits xs) = Bits [or xs]
   abs x = x
 
-fullSubtract :: Bit -> Bit -> Bit -> (Bit,Bit)
+fullSubtract :: (Boolean b) => b -> b -> b -> (b,b)
 fullSubtract c x y =
   (x `xor` y `xor` c, x && y && c || not x && y || not x && c)
 
-subBits :: (HasBits a, HasBits b) => a -> b -> Bits
+subBits :: (Boolean τ, HasBits a τ, HasBits b τ) => a -> b -> Bits τ
 subBits xs0 ys0 = Bits (map (not cN &&) ss) where
   (cN, ss) = aux false (unbits xs0) (unbits ys0)
 
