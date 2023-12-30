@@ -1,8 +1,10 @@
+{-# LANGUAGE DerivingStrategies #-}
 {-# language KindSignatures, DataKinds, FlexibleContexts #-}
 {-# language GeneralizedNewtypeDeriving #-}
 {-# language TypeFamilies, ScopedTypeVariables #-}
 {-# language UndecidableInstances #-}
 {-# language NoMonomorphismRestriction #-}
+{-# LANGUAGE DerivingVia #-}
 
 import Prelude hiding ( not, and, or, (&&), (||) )
 
@@ -111,8 +113,14 @@ gt a b = ge a b && topright a >? topright b
 -- Bitvectors of fixed length, with non-overflowing arithmetics
 -- (if overflow occurs, constraint is unsatisfiable)
 
-newtype NBV ( n :: Nat ) = NBV Bits
-  deriving ( Show, Equatable, Orderable, HasBits )
+-- FIXME
+newtype NBV ( n :: Nat ) = NBV (Bits Bit)
+  -- deriving ( Show, Equatable, Orderable, HasBits )
+  deriving ( Show )
+  deriving (Equatable (NBV n), Orderable (NBV n), HasBits (NBV n) ) via (Bits Bit)
+  -- deriving (Equatable (NBV n)) via (Bits Bit)
+  -- deriving (Orderable (NBV n)) via (Bits Bit)
+  -- deriving (HasBits   (NBV n)) via (Bits Bit)
 
 instance KnownNat w => Unknown (NBV w) where
   unknown = do

@@ -1,5 +1,6 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 module RegexpGrid.Types
 ( Pos (..)
@@ -27,12 +28,12 @@ data Pos =             P00|P01|P02|P03|P04|P05|P06
 
 -- 5 bits are enough for A–Z. (The subset of the alphabet used by the regexps
 -- also requires 5 bits. For simplicity, just use the full alphabet.)
-newtype Field = Field Bit5
+newtype Field = Field (Bit5 Bit)
   deriving (Show, Generic)
 
 instance Boolean   Field
 instance Variable  Field
-instance Equatable Field
+instance Equatable Field Bit
 
 instance Codec Field where
   type Decoded Field = Char

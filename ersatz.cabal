@@ -188,15 +188,16 @@ library
     Ersatz
     Ersatz.Bit
     Ersatz.Bits
-    Ersatz.Bits.Poly
+    -- Ersatz.Bits.Poly
     Ersatz.BitChar
+    -- Ersatz.BitChar.Poly
     Ersatz.Codec
     Ersatz.Equatable
-    Ersatz.Equatable.Poly
+    -- Ersatz.Equatable.Poly
     Ersatz.Internal.Formula
     Ersatz.Internal.Literal
     Ersatz.Orderable
-    Ersatz.Orderable.Poly
+    -- Ersatz.Orderable.Poly
     Ersatz.Problem
     Ersatz.Solution
     Ersatz.Solver
@@ -207,9 +208,9 @@ library
     Ersatz.Solver.Z3
     Ersatz.Variable
     Ersatz.Counting
-    Ersatz.Counting.Poly
+    -- Ersatz.Counting.Poly
     Ersatz.Relation
-    Ersatz.Relation.Poly
+    -- Ersatz.Relation.Poly
 
   other-modules:
     Ersatz.Internal.Parser
@@ -219,10 +220,10 @@ library
     Ersatz.Relation.Prop
     Ersatz.Relation.Op
     Ersatz.Relation.ARS
-    Ersatz.Relation.Data.Poly
-    Ersatz.Relation.Prop.Poly
-    Ersatz.Relation.Op.Poly
-    Ersatz.Relation.ARS.Poly
+    -- Ersatz.Relation.Data.Poly
+    -- Ersatz.Relation.Prop.Poly
+    -- Ersatz.Relation.Op.Poly
+    -- Ersatz.Relation.ARS.Poly
 
 executable ersatz-regexp-grid
   -- description: An example program that solves the regular expression crossword problem <http://www.coinheist.com/rubik/a_regular_crossword/> using Ersatz.
@@ -243,6 +244,7 @@ executable ersatz-regexp-grid
     RegexpGrid.Problem
     RegexpGrid.Regexp
     RegexpGrid.Types
+    -- RegexpGrid.Types.Poly
   default-language: Haskell2010
   ghc-options: -Wall
   hs-source-dirs: examples/regexp-grid
@@ -261,6 +263,7 @@ executable ersatz-sudoku
   main-is: Main.hs
   other-modules:
     Sudoku.Cell
+    -- Sudoku.Cell.Poly
     Sudoku.Problem
   ghc-options: -Wall
   hs-source-dirs: examples/sudoku

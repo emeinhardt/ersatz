@@ -1,4 +1,9 @@
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TypeOperators #-}
 --------------------------------------------------------------------
 -- |
 -- Copyright :  © Eric Mertens 2010-2014
@@ -22,26 +27,26 @@ import Ersatz.Orderable
 import Ersatz.Variable
 
 -- | List of 'BitChar' intended to be used as the representation for 'String'.
-type BitString = [BitChar]
+type BitString b = [BitChar b]
 
 -- | Encoding of the full range of 'Char' values.
-newtype BitChar = BitChar Bits
+newtype BitChar b = BitChar (Bits b)
   deriving Show
 
-instance Codec BitChar where
-  type Decoded BitChar = Char
+instance (Boolean b, Codec b, Decoded b ~ Bool) => Codec (BitChar b) where
+  type Decoded (BitChar b) = Char
   encode                = BitChar . fromIntegral . ord
   decode s (BitChar xs) = fmap (chr . fromIntegral) (decode s xs)
 
-instance Equatable BitChar where
+instance (Boolean b', Equatable (Bits b) b') => Equatable (BitChar b) b' where
   BitChar xs === BitChar ys = xs === ys
   BitChar xs /== BitChar ys = xs /== ys
 
-instance Orderable BitChar where
+instance (Boolean b', Equatable (Bits b) b', Orderable (Bits b) b') => Orderable (BitChar b) b' where
   BitChar xs <?  BitChar ys = xs <?  ys
   BitChar xs <=? BitChar ys = xs <=? ys
 
-instance Variable BitChar where
+instance (Variable b, Boolean b) => Variable (BitChar b) where
   literally m =
        -- Char upperbound is 0x10ffff, so only set
        -- the high bit when the next 4 bits are 0

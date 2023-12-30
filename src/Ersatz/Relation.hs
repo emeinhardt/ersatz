@@ -25,4 +25,3 @@ import Ersatz.Relation.Data
 import Ersatz.Relation.Op
 import Ersatz.Relation.Prop
 import Ersatz.Relation.ARS
-

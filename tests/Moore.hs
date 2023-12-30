@@ -45,7 +45,7 @@ mainf d k n s = do
 moore ::
   MonadSAT s m =>
   Int -> Int -> Int -> Int ->
-  m (R.Relation Int Int)
+  m (R.Relation Int Int Bit)
 moore d k n s = do
   -- g <- R.symmetric_relation ((0,0),(n-1,n-1))
   g <- periodic_relation s ((0,0),(n-1,n-1))

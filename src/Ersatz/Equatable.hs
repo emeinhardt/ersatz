@@ -4,6 +4,7 @@
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 {-# OPTIONS_HADDOCK not-home #-}
 --------------------------------------------------------------------
@@ -15,6 +16,7 @@
 -- Portability: non-portable
 --
 --------------------------------------------------------------------
+
 module Ersatz.Equatable
   ( Equatable(..)
   , GEquatable(..)
@@ -25,6 +27,8 @@ import Prelude hiding ((&&),(||),not,and,or,all,any)
 import Ersatz.Bit
 import GHC.Generics
 import Numeric.Natural
+import Control.Arrow ((***))
+import Data.Composition ((.:))
 import Data.IntMap (IntMap)
 import Data.Foldable (toList)
 import Data.Map (Map)
@@ -40,92 +44,100 @@ import qualified Data.Tree as Tree
 infix  4 ===, /==
 
 -- | Instances for this class for arbitrary types can be automatically derived from 'Generic'.
-class Equatable t where
+class Boolean b => Equatable t b where
   -- | Compare for equality within the SAT problem.
-  (===) :: t -> t -> Bit
-  default (===) :: (Generic t, GEquatable (Rep t)) => t -> t -> Bit
+  (===) :: t -> t -> b
+  default (===) :: (Generic t, GEquatable (Rep t) b) => t -> t -> b
   a === b = from a ===# from b
 
   -- | Compare for inequality within the SAT problem.
-  (/==) :: t -> t -> Bit
+  (/==) :: t -> t -> b
 
   a /== b = not (a === b)
 
-instance Equatable Bit where
+instance Equatable Bool Bit where
+  (===) = not . uncurry xor . (bool *** bool) .: (,)
+  (/==) = uncurry xor . (bool *** bool) .: (,)
+
+instance Equatable Bool Bool where
   a === b = not (xor a b)
   (/==) = xor
 
-instance (Eq k, Equatable v) => Equatable (Map k v) where
+instance Equatable Bit Bit where
+  a === b = not (xor a b)
+  (/==) = xor
+
+instance (Eq k, Equatable v b) => Equatable (Map k v) b where
   x === y
     | Map.keys x == Map.keys y = Map.elems x === Map.elems y
     | otherwise                = false
 
-instance Equatable v => Equatable (IntMap v) where
+instance Equatable v b => Equatable (IntMap v) b where
   x === y
     | IntMap.keys x == IntMap.keys y = IntMap.elems x === IntMap.elems y
     | otherwise                      = false
 
-instance Equatable v => Equatable (Seq.Seq v) where
+instance Equatable v b => Equatable (Seq.Seq v) b where
   x === y
     | Seq.length x == Seq.length y = toList x === toList y
     | otherwise                    = false
 
 -- manually written because ancient GHC didn't have the generics instance
-instance Equatable a => Equatable (Tree.Tree a) where
+instance Equatable a b => Equatable (Tree.Tree a) b where
   Tree.Node x xs === Tree.Node y ys = x === y && xs === ys
 
-instance (Equatable a, Equatable b) => Equatable (a,b)
-instance (Equatable a, Equatable b, Equatable c) => Equatable (a,b,c)
-instance (Equatable a, Equatable b, Equatable c, Equatable d) => Equatable (a,b,c,d)
-instance (Equatable a, Equatable b, Equatable c, Equatable d, Equatable e) => Equatable (a,b,c,d,e)
-instance (Equatable a, Equatable b, Equatable c, Equatable d, Equatable e, Equatable f) => Equatable (a,b,c,d,e,f)
-instance (Equatable a, Equatable b, Equatable c, Equatable d, Equatable e, Equatable f, Equatable g) => Equatable (a,b,c,d,e,f,g)
-instance Equatable a => Equatable (Maybe a)
-instance Equatable a => Equatable [a]
-instance Equatable a => Equatable (NonEmpty a)
-instance (Equatable a, Equatable b) => Equatable (Either a b)
+instance (Equatable a τ, Equatable b τ) => Equatable (a,b) τ
+instance (Equatable a τ, Equatable b τ, Equatable c τ) => Equatable (a,b,c) τ
+instance (Equatable a τ, Equatable b τ, Equatable c τ, Equatable d τ) => Equatable (a,b,c,d) τ
+instance (Equatable a τ, Equatable b τ, Equatable c τ, Equatable d τ, Equatable e τ) => Equatable (a,b,c,d,e)  τ
+instance (Equatable a τ, Equatable b τ, Equatable c τ, Equatable d τ, Equatable e τ, Equatable f τ) => Equatable (a,b,c,d,e,f) τ
+instance (Equatable a τ, Equatable b τ, Equatable c τ, Equatable d τ, Equatable e τ, Equatable f τ, Equatable g τ) => Equatable (a,b,c,d,e,f,g) τ
+instance Equatable a b => Equatable (Maybe a) b
+instance Equatable a b => Equatable [a] b
+instance Equatable a b => Equatable (NonEmpty a) b
+instance (Equatable a τ, Equatable b τ) => Equatable (Either a b) τ
 
-class GEquatable f where
-  (===#) :: f a -> f a -> Bit
+class (Boolean b) => GEquatable f b where
+  (===#) :: f a -> f a -> b
 
-instance GEquatable U1 where
+instance Boolean b => GEquatable U1 b where
   U1 ===# U1 = true
 
-instance GEquatable V1 where
+instance Boolean b => GEquatable V1 b where
   x ===# y = x `seq` y `seq` error "GEquatable[V1].===#"
 
-instance (GEquatable f, GEquatable g) => GEquatable (f :*: g) where
+instance (GEquatable f b, GEquatable g b) => GEquatable (f :*: g) b where
   (a :*: b) ===# (c :*: d) = (a ===# c) && (b ===# d)
 
-instance (GEquatable f, GEquatable g) => GEquatable (f :+: g) where
+instance (GEquatable f b, GEquatable g b) => GEquatable (f :+: g) b where
   L1 a ===# L1 b = a ===# b
   R1 a ===# R1 b = a ===# b
   _ ===# _ = false
 
-instance GEquatable f => GEquatable (M1 i c f) where
+instance GEquatable f b => GEquatable (M1 i c f) b where
   M1 x ===# M1 y = x ===# y
 
-instance Equatable a => GEquatable (K1 i a) where
+instance Equatable a b => GEquatable (K1 i a) b where
   K1 a ===# K1 b = a === b
 
 -- Boring instances that end up being useful when deriving Equatable with Generics
 
-instance Equatable ()       where _ === _ = true
-instance Equatable Void     where x === y = x `seq` y `seq` error "Equatable[Void].==="
-instance Equatable Int      where x === y = bool (x == y)
-instance Equatable Integer  where x === y = bool (x == y)
-instance Equatable Natural  where x === y = bool (x == y)
-instance Equatable Word     where x === y = bool (x == y)
-instance Equatable Word8    where x === y = bool (x == y)
-instance Equatable Word16   where x === y = bool (x == y)
-instance Equatable Word32   where x === y = bool (x == y)
-instance Equatable Word64   where x === y = bool (x == y)
-instance Equatable Int8     where x === y = bool (x == y)
-instance Equatable Int16    where x === y = bool (x == y)
-instance Equatable Int32    where x === y = bool (x == y)
-instance Equatable Int64    where x === y = bool (x == y)
-instance Equatable Char     where x === y = bool (x == y)
-instance Equatable Float    where x === y = bool (x == y)
-instance Equatable Double   where x === y = bool (x == y)
-instance Equatable Ordering where x === y = bool (x == y)
-instance Equatable Bool     where x === y = bool (x == y)
+instance Boolean b => Equatable ()       b  where _ === _ = true
+instance Boolean b => Equatable Void     b  where x === y = x `seq` y `seq` error "Equatable[Void].==="
+instance Boolean b => Equatable Int      b  where x === y = bool (x == y)
+instance Boolean b => Equatable Integer  b  where x === y = bool (x == y)
+instance Boolean b => Equatable Natural  b  where x === y = bool (x == y)
+instance Boolean b => Equatable Word     b  where x === y = bool (x == y)
+instance Boolean b => Equatable Word8    b  where x === y = bool (x == y)
+instance Boolean b => Equatable Word16   b  where x === y = bool (x == y)
+instance Boolean b => Equatable Word32   b  where x === y = bool (x == y)
+instance Boolean b => Equatable Word64   b  where x === y = bool (x == y)
+instance Boolean b => Equatable Int8     b  where x === y = bool (x == y)
+instance Boolean b => Equatable Int16    b  where x === y = bool (x == y)
+instance Boolean b => Equatable Int32    b  where x === y = bool (x == y)
+instance Boolean b => Equatable Int64    b  where x === y = bool (x == y)
+instance Boolean b => Equatable Char     b  where x === y = bool (x == y)
+instance Boolean b => Equatable Float    b  where x === y = bool (x == y)
+instance Boolean b => Equatable Double   b  where x === y = bool (x == y)
+instance Boolean b => Equatable Ordering b  where x === y = bool (x == y)
+instance Boolean b => Equatable Bool     b  where x === y = bool (x == y)

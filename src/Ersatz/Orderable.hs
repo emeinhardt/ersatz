@@ -7,6 +7,7 @@
 #endif
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 {-# OPTIONS_HADDOCK not-home #-}
 --------------------------------------------------------------------
@@ -41,42 +42,42 @@ import qualified Data.Tree as Tree
 infix  4 <?, <=?, >=?, >?
 
 -- | Instances for this class for arbitrary types can be automatically derived from 'Generic'.
-class Equatable t => Orderable t where
+class Equatable t b => Orderable t b where
   -- | Compare for less-than within the SAT problem.
-  (<?)  :: t -> t -> Bit
+  (<?)  :: t -> t -> b
 
   -- | Compare for less-than or equal-to within the SAT problem.
-  (<=?) :: t -> t -> Bit
+  (<=?) :: t -> t -> b
   x <=? y = x === y || x <? y
 #ifndef HLINT
-  default (<?) :: (Generic t, GOrderable (Rep t)) => t -> t -> Bit
+  default (<?) :: (Generic t, GOrderable (Rep t) b) => t -> t -> b
   a <? b = from a <?# from b
 #endif
 
   -- | Compare for greater-than or equal-to within the SAT problem.
-  (>=?) :: t -> t -> Bit
+  (>=?) :: t -> t -> b
   x >=? y = y <=? x
 
   -- | Compare for greater-than within the SAT problem.
-  (>?) :: t -> t -> Bit
+  (>?) :: t -> t -> b
   x >? y = y <? x
 
 
-instance Orderable Bit where
+instance Orderable Bit Bit where
   a <?  b = not a && b
   a <=? b = not a || b
 
 -- | Compare by lexicographic order on sorted key-value pairs
-instance (Ord k, Orderable v) => Orderable (Map.Map k v) where
+instance (Ord k, Orderable v b) => Orderable (Map.Map k v) b where
   x <?  y = assocsLt (Map.assocs x) (Map.assocs y)
   x <=? y = assocsLe (Map.assocs x) (Map.assocs y)
 
 -- | Compare by lexicographic order on sorted key-value pairs
-instance Orderable v => Orderable (IntMap.IntMap v) where
+instance Orderable v b => Orderable (IntMap.IntMap v) b where
   x <?  y = assocsLt (IntMap.assocs x) (IntMap.assocs y)
   x <=? y = assocsLe (IntMap.assocs x) (IntMap.assocs y)
 
-assocsLt :: (Ord k, Orderable v) => [(k,v)] -> [(k,v)] -> Bit
+assocsLt :: (Ord k, Orderable v b) => [(k,v)] -> [(k,v)] -> b
 assocsLt _ [] = false
 assocsLt [] _ = true
 assocsLt ((k1,v1):xs) ((k2,v2):ys) =
@@ -85,7 +86,7 @@ assocsLt ((k1,v1):xs) ((k2,v2):ys) =
     GT -> false
     EQ -> v1 <? v2 || v1 === v2 && assocsLt xs ys
 
-assocsLe :: (Ord k, Orderable v) => [(k,v)] -> [(k,v)] -> Bit
+assocsLe :: (Ord k, Orderable v b) => [(k,v)] -> [(k,v)] -> b
 assocsLe [] _ = true
 assocsLe _ [] = false
 assocsLe ((k1,v1):xs) ((k2,v2):ys) =
@@ -95,26 +96,26 @@ assocsLe ((k1,v1):xs) ((k2,v2):ys) =
     EQ -> v1 <? v2 || v1 === v2 && assocsLe xs ys
 
 -- | Compare by lexicographic order on elements
-instance Orderable v => Orderable (Seq.Seq v) where
+instance Orderable v b => Orderable (Seq.Seq v) b where
   x <?  y = toList x <?  toList y
   x <=? y = toList x <=? toList y
 
 -- | Compare by lexicographic order on: root node, list of children
-instance Orderable a => Orderable (Tree.Tree a) where
+instance Orderable a b => Orderable (Tree.Tree a) b where
   Tree.Node x xs <?  Tree.Node y ys = (x,xs) <?  (y,ys)
   Tree.Node x xs <=? Tree.Node y ys = (x,xs) <=? (y,ys)
 
-instance (Orderable a, Orderable b) => Orderable (a,b)
-instance (Orderable a, Orderable b, Orderable c) => Orderable (a,b,c)
-instance (Orderable a, Orderable b, Orderable c, Orderable d) => Orderable (a,b,c,d)
-instance (Orderable a, Orderable b, Orderable c, Orderable d, Orderable e) => Orderable (a,b,c,d,e)
-instance (Orderable a, Orderable b, Orderable c, Orderable d, Orderable e, Orderable f) => Orderable (a,b,c,d,e,f)
-instance (Orderable a, Orderable b, Orderable c, Orderable d, Orderable e, Orderable f, Orderable g) => Orderable (a,b,c,d,e,f,g)
-instance Orderable a => Orderable (Maybe a)
-instance (Orderable a, Orderable b) => Orderable (Either a b)
+instance (Orderable a τ, Orderable b τ) => Orderable (a,b) τ
+instance (Orderable a τ, Orderable b τ, Orderable c τ) => Orderable (a,b,c) τ
+instance (Orderable a τ, Orderable b τ, Orderable c τ, Orderable d τ) => Orderable (a,b,c,d) τ
+instance (Orderable a τ, Orderable b τ, Orderable c τ, Orderable d τ, Orderable e τ) => Orderable (a,b,c,d,e) τ
+instance (Orderable a τ, Orderable b τ, Orderable c τ, Orderable d τ, Orderable e τ, Orderable f τ) => Orderable (a,b,c,d,e,f) τ
+instance (Orderable a τ, Orderable b τ, Orderable c τ, Orderable d τ, Orderable e τ, Orderable f τ, Orderable g τ) => Orderable (a,b,c,d,e,f,g) τ
+instance Orderable a τ => Orderable (Maybe a) τ
+instance (Orderable a τ, Orderable b τ) => Orderable (Either a b) τ
 
 -- | Lexicographic order
-instance Orderable a => Orderable [a] where
+instance Orderable a b => Orderable [a] b where
 #ifndef HLINT
   []   <? []   = false
   x:xs <? y:ys = x === y && xs <? ys
@@ -128,23 +129,23 @@ instance Orderable a => Orderable [a] where
   _    <=? []   = false
 #endif
 
-class GEquatable f => GOrderable f where
-  (<?#) :: f a -> f a -> Bit
-  (<=?#) :: f a -> f a -> Bit
+class GEquatable f b => GOrderable f b where
+  (<?#) :: f a -> f a -> b
+  (<=?#) :: f a -> f a -> b
 
-instance GOrderable U1 where
+instance Boolean b => GOrderable U1 b where
   U1 <?#  U1 = false
   U1 <=?# U1 = true
 
-instance GOrderable V1 where
+instance Boolean b => GOrderable V1 b where
   x <?# y = x `seq` y `seq` error "GOrderable[V1].<?#"
   x <=?# y = x `seq` y `seq` error "GOrderable[V1].<=?#"
 
-instance (GOrderable f, GOrderable g) => GOrderable (f :*: g) where
+instance (GOrderable f b, GOrderable g b) => GOrderable (f :*: g) b where
   (a :*: b) <?#  (c :*: d) = (a <?# c) || (a ===# c && b <?# d)
   (a :*: b) <=?# (c :*: d) = (a <?# c) || (a ===# c && b <=?# d)
 
-instance (GOrderable f, GOrderable g) => GOrderable (f :+: g) where
+instance (GOrderable f b, GOrderable g b) => GOrderable (f :+: g) b where
   L1 _ <?# R1 _ = true
   L1 a <?# L1 b = a <?# b
   R1 a <?# R1 b = a <?# b
@@ -155,51 +156,70 @@ instance (GOrderable f, GOrderable g) => GOrderable (f :+: g) where
   R1 a <=?# R1 b = a <=?# b
   R1 _ <=?# L1 _ = false
 
-instance GOrderable f => GOrderable (M1 i c f) where
+instance GOrderable f b => GOrderable (M1 i c f) b where
   M1 x <?#  M1 y = x <?#  y
   M1 x <=?# M1 y = x <=?# y
 
-instance Orderable a => GOrderable (K1 i a) where
+instance Orderable a b => GOrderable (K1 i a) b where
   K1 a <?#  K1 b = a <?  b
   K1 a <=?# K1 b = a <=? b
 
 -- Boring instances that end up being useful when deriving Orderable with Generics
 
-instance Orderable ()       where _ <?  _ = false
-                                  _ <=? _ = true
-instance Orderable Void     where x <?  y = x `seq` y `seq` error "Orderable[Void].<?"
-                                  x <=? y = x `seq` y `seq` error "Orderable[Void].<=?"
-instance Orderable Int      where x <?  y = bool (x <  y)
-                                  x <=? y = bool (x <= y)
-instance Orderable Integer  where x <?  y = bool (x <  y)
-                                  x <=? y = bool (x <= y)
-instance Orderable Natural  where x <?  y = bool (x <  y)
-                                  x <=? y = bool (x <= y)
-instance Orderable Word     where x <?  y = bool (x <  y)
-                                  x <=? y = bool (x <= y)
-instance Orderable Word8    where x <?  y = bool (x <  y)
-                                  x <=? y = bool (x <= y)
-instance Orderable Word16   where x <?  y = bool (x <  y)
-                                  x <=? y = bool (x <= y)
-instance Orderable Word32   where x <?  y = bool (x <  y)
-                                  x <=? y = bool (x <= y)
-instance Orderable Word64   where x <?  y = bool (x <  y)
-                                  x <=? y = bool (x <= y)
-instance Orderable Int8     where x <?  y = bool (x <  y)
-                                  x <=? y = bool (x <= y)
-instance Orderable Int16    where x <?  y = bool (x <  y)
-                                  x <=? y = bool (x <= y)
-instance Orderable Int32    where x <?  y = bool (x <  y)
-                                  x <=? y = bool (x <= y)
-instance Orderable Int64    where x <?  y = bool (x <  y)
-                                  x <=? y = bool (x <= y)
-instance Orderable Char     where x <?  y = bool (x <  y)
-                                  x <=? y = bool (x <= y)
-instance Orderable Float    where x <?  y = bool (x <  y)
-                                  x <=? y = bool (x <= y)
-instance Orderable Double   where x <?  y = bool (x <  y)
-                                  x <=? y = bool (x <= y)
-instance Orderable Ordering where x <?  y = bool (x <  y)
-                                  x <=? y = bool (x <= y)
-instance Orderable Bool     where x <?  y = bool (x <  y)
-                                  x <=? y = bool (x <= y)
+instance Boolean b => Orderable () b where
+  _ <?  _ = false
+  _ <=? _ = true
+instance Boolean b => Orderable Void b where
+  x <?  y = x `seq` y `seq` error "Orderable[Void].<?"
+  x <=? y = x `seq` y `seq` error "Orderable[Void].<=?"
+instance Boolean b => Orderable Int b where
+  x <?  y = bool (x <  y)
+  x <=? y = bool (x <= y)
+instance Boolean b => Orderable Integer b where
+  x <?  y = bool (x <  y)
+  x <=? y = bool (x <= y)
+instance Boolean b => Orderable Natural b where
+  x <?  y = bool (x <  y)
+  x <=? y = bool (x <= y)
+instance Boolean b => Orderable Word b where
+  x <?  y = bool (x <  y)
+  x <=? y = bool (x <= y)
+instance Boolean b => Orderable Word8 b where
+  x <?  y = bool (x <  y)
+  x <=? y = bool (x <= y)
+instance Boolean b => Orderable Word16 b where
+  x <?  y = bool (x <  y)
+  x <=? y = bool (x <= y)
+instance Boolean b => Orderable Word32 b where
+  x <?  y = bool (x <  y)
+  x <=? y = bool (x <= y)
+instance Boolean b => Orderable Word64 b where
+  x <?  y = bool (x <  y)
+  x <=? y = bool (x <= y)
+instance Boolean b => Orderable Int8 b where
+  x <?  y = bool (x <  y)
+  x <=? y = bool (x <= y)
+instance Boolean b => Orderable Int16 b where
+  x <?  y = bool (x <  y)
+  x <=? y = bool (x <= y)
+instance Boolean b => Orderable Int32 b where
+  x <?  y = bool (x <  y)
+  x <=? y = bool (x <= y)
+instance Boolean b => Orderable Int64 b where
+  x <?  y = bool (x <  y)
+  x <=? y = bool (x <= y)
+instance Boolean b => Orderable Char b where
+  x <?  y = bool (x <  y)
+  x <=? y = bool (x <= y)
+instance Boolean b => Orderable Float b where
+  x <?  y = bool (x <  y)
+  x <=? y = bool (x <= y)
+instance Boolean b => Orderable Double b where
+  x <?  y = bool (x <  y)
+  x <=? y = bool (x <= y)
+instance Boolean b => Orderable Ordering b where
+  x <?  y = bool (x <  y)
+  x <=? y = bool (x <= y)
+instance Boolean b => Orderable Bool b where
+  x <?  y = bool (x <  y)
+  x <=? y = bool (x <= y)

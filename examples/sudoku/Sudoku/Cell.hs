@@ -1,5 +1,6 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 module Sudoku.Cell (Cell(..)) where
 
@@ -9,12 +10,12 @@ import Data.Word
 import Ersatz
 import GHC.Generics
 
-newtype Cell = Cell Bit4
+newtype Cell = Cell (Bit4 Bit)
   deriving (Show, Generic)
 
 instance Boolean   Cell
 instance Variable  Cell
-instance Equatable Cell
+instance Equatable Cell Bit
 
 instance Codec Cell where
   type Decoded Cell = Word8
